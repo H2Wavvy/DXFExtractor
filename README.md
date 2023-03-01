@@ -1,2 +1,159 @@
 # DXFExtractor
-For extracting entities and attributes of entities from DXF files, with the aid of the handy ezdxf module! In progress with revised versions, and will often contain very specific code with *issues*, but my aim is to eventually create a code with extracts the attributes of every entity within the user defined DXF file. 
+For extracting entities and attributes of entities from DXF files, with the aid of the handy ezdxf module! In progress with revised versions, and will often contain very specific code with *issues*, but my aim is to eventually create a code with extracts the attributes of every entity within the user defined DXF file. I will update the README file as I progress with the extractor:
+
+import tkinter as tk
+from tkinter import filedialog
+import ezdxf
+import math
+import pandas as pd
+import sys
+
+def browse_file():
+    file_path = filedialog.askopenfilename()
+    file_path_entry.delete(0, tk.END)
+    file_path_entry.insert(0, file_path)
+    print(file_path)
+    return file_path
+
+def read_file(file_path):
+ try:
+    doc = ezdxf.readfile(file_path)
+ except IOError:
+    status_label.config(text="Not a DXF file or a generic I/O error.")
+    sys.exit(1)
+ except ezdxf.DXFStructureError:
+    status_label.config(text="Invalid or corrupted DXF file.")
+    sys.exit(2)
+    return doc
+
+insert_info = {}
+block_data = []
+INSERT_data = []
+entity_data = []
+
+def extract_dxf_info(file_path):
+    doc = ezdxf.readfile(file_path)
+    msp = doc.modelspace()
+
+    global insert_info, block_data, INSERT_data, entity_data,P
+
+    for entity in msp:
+        if entity.dxftype() == "INSERT":
+            block_name = entity.dxf.name
+
+            insertion_point = entity.dxf.insert
+
+            try:
+                scale_factor = entity.dxf.xscale
+            except AttributeError:
+                scale_factor = 0
+
+            quantity = int(math.ceil(abs(scale_factor)))
+
+            if block_name not in insert_info:
+                insert_info[block_name] = quantity
+            else:
+                insert_info[block_name] += quantity
+
+        elif entity.dxftype() == "ACAD_PROXY_ENTITY" or entity.dxftype() == "3DSOLID":
+            extract_3d_attributes(entity)
+
+        else:
+            entity_type = entity.dxftype()
+            entity_color = entity.dxf.color
+            entity_data.append({"Entity type": entity_type, "Color": entity_color,
+                                "Volume": 0, "Material": 0, "Thickness": 0})
+
+    for block_name, quantity in insert_info.items():
+        block_data.append({"Block name": block_name, "Quantity": quantity})
+
+    PBD = pd.DataFrame.from_dict(block_data)
+    PID = pd.DataFrame.from_dict(INSERT_data)
+    PED = pd.DataFrame.from_dict(entity_data)
+    P = pd.concat([PBD, PID, PED], axis=1)
+
+    return P
+
+def extract_3d_attributes(entity):
+    global entity_data
+
+    entity_type = entity.dxftype()
+    entity_color = entity.dxf.color
+
+    try:
+        entity_volume = entity.dxf.volume
+    except AttributeError:
+        entity_volume = 0
+
+    try:
+        entity_material = entity.get_material()
+    except (AttributeError, ValueError):
+        entity_material = 0
+
+    try:
+        entity_thickness = entity.dxf.thickness
+    except AttributeError:
+        entity_thickness = 0
+
+    entity_data.append({"Entity type": entity_type, "Color": entity_color,
+                        "Volume": entity_volume, "Material": entity_material,
+                        "Thickness": entity_thickness})
+
+def on_extract_clicked():
+    file_path = file_path_entry.get()
+
+    try:
+        P = extract_dxf_info(file_path)
+        info_extracted_label.config(text="Information extracted")
+        print(P)
+        return P
+    except Exception as e:
+        info_extracted_label.config(text="Error: " + str(e))
+
+
+def save_to_csv():
+    try:
+        global P
+
+        save_path = filedialog.asksaveasfilename(defaultextension=".csv")
+        
+        if not save_path:
+            return
+
+        P.to_csv(save_path, index=False)
+
+        info_extracted_label.config(text="Data saved to: " + save_path)
+    except Exception as e:
+        info_extracted_label.config(text=str(e))
+
+
+root = tk.Tk()
+root.geometry("500x500")
+
+status_label = tk.Label(root, text="Status:")
+status_label.pack()
+
+file_path_label = tk.Label(root, text="File path:")
+file_path_label.pack()
+
+file_path_entry = tk.Entry(root)
+file_path_entry.pack()
+
+browse_button = tk.Button(root, text="Browse", command=browse_file)
+browse_button.pack()
+
+
+extract_button = tk.Button(root, text="Extract", command=on_extract_clicked)
+extract_button.pack()
+
+save_button = tk.Button(root, text="Save", command=save_to_csv)
+save_button.pack()
+
+info_extracted_label = tk.Label(root, text="")
+info_extracted_label.pack()
+
+quit_button = tk.Button(root, text="Quit", command=root.quit)
+quit_button.pack()
+
+
+root.mainloop()
