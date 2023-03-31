@@ -1,10 +1,11 @@
 # -*- coding: utf-8 -*-
 """
-Created on Tue Mar 21 23:54:11 2023
-
-@author: hless
+All very rough still, but this is a slightly more clear version for returning all of the closed objects formed by multiple entities,
+ along with INSERT entities, with the quantities of these entities in the model space. I've removed my work on getting dimensions and the
+varities of sizes of grouped entities in the layers, as it would make this look even more messy. But now this is a finalaised version to return the 
+quantity and accutal objects names from the CAD files. Of course, the DXF file would have to be well labbeled and have many names asccosiated to
+each entitiy for it to mean anything in the returned data, but I'm sure someone will find the helpfull... eventually.
 """
-
 
 import tkinter as tk
 from tkinter import filedialog
